@@ -1,0 +1,17 @@
+{
+  "extends": ["airbnb", "airbnb/hooks", "next/core-web-vitals", "prettier"],
+  "globals": {
+    "React": true
+  },
+  "rules": {
+    "react/jsx-filename-extension": ["error", { "extensions": [".tsx"] }],
+    "import/extensions": [
+      "error",
+      "always",
+      {
+        "ts": "never",
+        "js": "never"
+      }
+    ]
+  }
+}
