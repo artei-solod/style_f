@@ -22,10 +22,9 @@ interface DashboardStats {
   outfits: {
     total: number
     recent: Array<{
-      id: string
+      _id: string
       name: string
-      items: number
-      imageId: string
+      clothes: number
     }>
   }
   recommendations: {
@@ -64,11 +63,50 @@ export default function DashboardPage() {
       setIsLoading(true)
       setError("")
 
-      const response = await apiClient.request("/api/dashboard")
-      setDashboardData(response)
+      // Fetch data from multiple endpoints to build dashboard
+      const [clothesResponse, outfitsResponse] = await Promise.all([
+        fetch(`${apiClient["baseURL"]}/api/v1/get_my_clothes?offset=0&limit=1`, {
+          headers: { Authorization: `Bearer ${session?.accessToken}` },
+        }),
+        fetch(`${apiClient["baseURL"]}/api/v1/get_outfits?offset=0&limit=3`, {
+          headers: { Authorization: `Bearer ${session?.accessToken}` },
+        }),
+      ])
+
+      const clothesTotalCount = Number.parseInt(clothesResponse.headers.get("X-Total-Count") || "0")
+      const outfitsTotalCount = Number.parseInt(outfitsResponse.headers.get("X-Total-Count") || "0")
+      const outfitsData = await outfitsResponse.json()
+
+      setDashboardData({
+        wardrobe: {
+          totalItems: clothesTotalCount,
+          upperBody: 0, // Would need category-specific data
+          lowerBody: 0,
+          shoes: 0,
+          accessories: 0,
+        },
+        outfits: {
+          total: outfitsTotalCount,
+          recent:
+            outfitsData.data?.map((outfit: any) => ({
+              _id: outfit._id,
+              name: outfit.name,
+              clothes: outfit.clothes?.length || 0,
+            })) || [],
+        },
+        recommendations: { count: 0 },
+        activities: [],
+      })
     } catch (error) {
       console.error("Error fetching dashboard data:", error)
       setError("Failed to load dashboard data. Please try again.")
+      // Set fallback data
+      setDashboardData({
+        wardrobe: { totalItems: 0, upperBody: 0, lowerBody: 0, shoes: 0, accessories: 0 },
+        outfits: { total: 0, recent: [] },
+        recommendations: { count: 0 },
+        activities: [],
+      })
     } finally {
       setIsLoading(false)
     }
@@ -89,26 +127,12 @@ export default function DashboardPage() {
     return null // Will redirect to login
   }
 
-  // Fallback data in case API fails
-  const fallbackData = {
-    wardrobe: {
-      totalItems: 0,
-      upperBody: 0,
-      lowerBody: 0,
-      shoes: 0,
-      accessories: 0,
-    },
-    outfits: {
-      total: 0,
-      recent: [],
-    },
-    recommendations: {
-      count: 0,
-    },
+  const data = dashboardData || {
+    wardrobe: { totalItems: 0, upperBody: 0, lowerBody: 0, shoes: 0, accessories: 0 },
+    outfits: { total: 0, recent: [] },
+    recommendations: { count: 0 },
     activities: [],
   }
-
-  const data = dashboardData || fallbackData
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -144,7 +168,9 @@ export default function DashboardPage() {
 
         {/* Welcome Section */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {session.user.name || "Stylist"}!</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Welcome back, {session.userInfo?.email || session.user.name || "Stylist"}!
+          </h1>
           <p className="text-gray-600">Ready to discover your perfect style today?</p>
         </div>
 
@@ -216,7 +242,7 @@ export default function DashboardPage() {
                   <div className="flex -space-x-2">
                     {data.outfits.recent.slice(0, 3).map((outfit) => (
                       <div
-                        key={outfit.id}
+                        key={outfit._id}
                         className="w-8 h-10 bg-gradient-to-br from-purple-100 to-pink-100 rounded border-2 border-white"
                       />
                     ))}
@@ -274,18 +300,24 @@ export default function DashboardPage() {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start">
-                <Plus className="mr-2 h-4 w-4" />
-                Add New Item to Wardrobe
-              </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <Sparkles className="mr-2 h-4 w-4" />
-                Generate New Outfit
-              </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <Search className="mr-2 h-4 w-4" />
-                Find Missing Pieces
-              </Button>
+              <Link href="/dashboard/wardrobe">
+                <Button variant="outline" className="w-full justify-start">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add New Item to Wardrobe
+                </Button>
+              </Link>
+              <Link href="/dashboard/outfits">
+                <Button variant="outline" className="w-full justify-start">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate New Outfit
+                </Button>
+              </Link>
+              <Link href="/dashboard/shopping">
+                <Button variant="outline" className="w-full justify-start">
+                  <Search className="mr-2 h-4 w-4" />
+                  Find Missing Pieces
+                </Button>
+              </Link>
             </CardContent>
           </Card>
 

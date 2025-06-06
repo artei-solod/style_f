@@ -16,7 +16,7 @@ import Link from "next/link"
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
-    email: "",
+    username: "", // Changed from email to username
     password: "",
   })
   const [isLoading, setIsLoading] = useState(false)
@@ -37,18 +37,17 @@ export default function LoginPage() {
 
     try {
       const result = await signIn("credentials", {
-        email: formData.email,
+        username: formData.username, // Backend expects username
         password: formData.password,
         redirect: false,
       })
 
       if (result?.error) {
-        setError("Invalid email or password")
+        setError("Invalid credentials")
       } else {
         // Check if user has completed onboarding
         const session = await getSession()
         if (session) {
-          // You can check user profile to see if onboarding is complete
           router.push("/dashboard")
         }
       }
@@ -118,22 +117,22 @@ export default function LoginPage() {
               <Separator className="w-full" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">Or continue with email</span>
+              <span className="bg-white px-2 text-gray-500">Or continue with credentials</span>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Email or Phone</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="Enter your email"
+                  id="username"
+                  name="username"
+                  type="text"
+                  placeholder="Enter your email or phone"
                   className="pl-10"
-                  value={formData.email}
+                  value={formData.username}
                   onChange={handleInputChange}
                   required
                   disabled={isLoading}

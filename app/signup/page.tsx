@@ -11,14 +11,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Sparkles, Mail, Lock, User, Loader2 } from "lucide-react"
+import { Sparkles, Mail, Lock, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { apiClient } from "@/lib/api"
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
+    username: "", // Email or phone
     password: "",
     confirmPassword: "",
   })
@@ -33,36 +32,50 @@ export default function SignUpPage() {
     })
   }
 
+  const validateInput = () => {
+    // Email validation
+    const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/
+    // Phone validation (basic)
+    const phoneRegex = /^\+?[\d\s-()]+$/
+
+    if (!emailRegex.test(formData.username) && !phoneRegex.test(formData.username)) {
+      setError("Please enter a valid email address or phone number")
+      return false
+    }
+
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters long")
+      return false
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match")
+      return false
+    }
+
+    return true
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
-    // Validate passwords match
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match")
-      setIsLoading(false)
-      return
-    }
-
-    // Validate password strength
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters long")
+    if (!validateInput()) {
       setIsLoading(false)
       return
     }
 
     try {
       // Register user with backend
-      await apiClient.register({
-        name: formData.name,
-        email: formData.email,
+      await apiClient.signup({
+        username: formData.username,
         password: formData.password,
       })
 
       // Auto-login after successful registration
       const result = await signIn("credentials", {
-        email: formData.email,
+        username: formData.username,
         password: formData.password,
         redirect: false,
       })
@@ -74,8 +87,8 @@ export default function SignUpPage() {
         router.push("/onboarding/photo-upload")
       }
     } catch (error: any) {
-      if (error.message.includes("409")) {
-        setError("An account with this email already exists")
+      if (error.message.includes("400")) {
+        setError("An account with this email/phone already exists")
       } else {
         setError("Registration failed. Please try again.")
       }
@@ -143,40 +156,22 @@ export default function SignUpPage() {
               <Separator className="w-full" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">Or continue with email</span>
+              <span className="bg-white px-2 text-gray-500">Or continue with email/phone</span>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="name"
-                  name="name"
-                  type="text"
-                  placeholder="Enter your full name"
-                  className="pl-10"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Email or Phone</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="Enter your email"
+                  id="username"
+                  name="username"
+                  type="text"
+                  placeholder="Enter your email or phone"
                   className="pl-10"
-                  value={formData.email}
+                  value={formData.username}
                   onChange={handleInputChange}
                   required
                   disabled={isLoading}
@@ -192,7 +187,7 @@ export default function SignUpPage() {
                   id="password"
                   name="password"
                   type="password"
-                  placeholder="Create a password"
+                  placeholder="Create a password (min 6 characters)"
                   className="pl-10"
                   value={formData.password}
                   onChange={handleInputChange}

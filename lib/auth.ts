@@ -1,101 +1,124 @@
-// ai-stylist-app/lib/auth.ts
+import type { NextAuthOptions } from "next-auth"
+import CredentialsProvider from "next-auth/providers/credentials"
+import GoogleProvider from "next-auth/providers/google"
 
-import type { NextAuthOptions } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
-import { JWT } from "next-auth/jwt";
-
-// Ensure you have BACKEND_URL in your .env.local, e.g.:
-// BACKEND_URL=http://localhost:8000
+const API_BASE_URL = process.env.BACKEND_URL || "http://localhost:8000"
+const API_PREFIX = "/api/v1"
 
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
-      name: "Credentials",
+      name: "credentials",
       credentials: {
-        email: {
-          label: "Email",
-          type: "email",
-          placeholder: "john@example.com",
-        },
+        username: { label: "Email or Phone", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
+        if (!credentials?.username || !credentials?.password) {
+          return null
         }
 
-        // ====================================
-        // 1) Send form‐urlencoded login to /api/v1/token
-        // ====================================
-        const loginRes = await fetch(
-          `${process.env.BACKEND_URL}/api/v1/token`,
-          {
+        try {
+          // Use form data for OAuth2PasswordRequestForm
+          const formData = new FormData()
+          formData.append("username", credentials.username)
+          formData.append("password", credentials.password)
+
+          const response = await fetch(`${API_BASE_URL}${API_PREFIX}/token`, {
             method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              username: credentials.email,
-              password: credentials.password,
-            }),
+            body: formData,
+          })
+
+          const data = await response.json()
+
+          if (response.ok && data.access_token) {
+            return {
+              id: data.user_info?.email || data.user_info?.phone || credentials.username,
+              email: data.user_info?.email || credentials.username,
+              name: data.user_info?.email || credentials.username,
+              username: credentials.username,
+              accessToken: data.access_token,
+              refreshToken: data.refresh_token,
+              userInfo: data.user_info,
+            }
           }
-        );
 
-        if (!loginRes.ok) {
-          // e.g. 401 Invalid credentials
-          return null;
+          return null
+        } catch (error) {
+          console.error("Login error:", error)
+          return null
         }
-
-        const data = await loginRes.json();
-        // data should look like:
-        // {
-        //   access_token: "…jwt…",
-        //   token_type: "bearer",
-        //   refresh_token: "…refresh…",
-        //   user: { id: "...", email: "...", name: "..." }
-        // }
-
-        return {
-          id: data.user.id,
-          name: data.user.name,
-          email: data.user.email,
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token,
-        };
       },
     }),
-
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
+  callbacks: {
+    async jwt({ token, user, account }) {
+      // Initial sign in
+      if (account && user) {
+        if (account.provider === "google") {
+          // Handle Google OAuth - send to backend
+          try {
+            const response = await fetch(`${API_BASE_URL}${API_PREFIX}/google_auth`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                token: account.id_token,
+              }),
+            })
 
+            const data = await response.json()
+
+            if (response.ok) {
+              token.accessToken = data.access_token
+              token.refreshToken = data.refresh_token
+              token.username = user.email
+              token.userInfo = data.user_info
+            }
+          } catch (error) {
+            console.error("Google auth error:", error)
+          }
+        } else {
+          // Credentials login
+          token.accessToken = user.accessToken
+          token.refreshToken = user.refreshToken
+          token.username = user.username
+          token.userInfo = user.userInfo
+        }
+      }
+
+      // Token refresh logic
+      if (token.accessToken && token.refreshToken) {
+        try {
+          // Check if token is about to expire (implement your logic here)
+          // For now, we'll just pass through
+        } catch (error) {
+          console.error("Token refresh error:", error)
+        }
+      }
+
+      return token
+    },
+    async session({ session, token }) {
+      session.user.id = token.username as string
+      session.user.username = token.username as string
+      session.accessToken = token.accessToken as string
+      session.refreshToken = token.refreshToken as string
+      session.userInfo = token.userInfo as any
+
+      return session
+    },
+  },
   pages: {
     signIn: "/login",
     signUp: "/signup",
   },
-
   session: {
     strategy: "jwt",
   },
-
-  callbacks: {
-    async jwt({ token, user, account }) {
-      // On initial sign in, NextAuth gives us `user` + `account`
-      if (account && user) {
-        token.accessToken = (user as any).accessToken;
-        token.refreshToken = (user as any).refreshToken;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token && session.user) {
-        (session as any).accessToken = (token as JWT)
-          .accessToken as string;
-        (session as any).refreshToken = (token as JWT)
-          .refreshToken as string;
-      }
-      return session;
-    },
-  },
-};
+}
