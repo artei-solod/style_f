@@ -19,7 +19,6 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // Use form data for OAuth2PasswordRequestForm
           const formData = new FormData()
           formData.append("username", credentials.username)
           formData.append("password", credentials.password)
@@ -57,10 +56,8 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user, account }) {
-      // Initial sign in
       if (account && user) {
         if (account.provider === "google") {
-          // Handle Google OAuth - send to backend
           try {
             const response = await fetch(`${API_BASE_URL}${API_PREFIX}/google_auth`, {
               method: "POST",
@@ -84,21 +81,10 @@ export const authOptions: NextAuthOptions = {
             console.error("Google auth error:", error)
           }
         } else {
-          // Credentials login
           token.accessToken = user.accessToken
           token.refreshToken = user.refreshToken
           token.username = user.username
           token.userInfo = user.userInfo
-        }
-      }
-
-      // Token refresh logic
-      if (token.accessToken && token.refreshToken) {
-        try {
-          // Check if token is about to expire (implement your logic here)
-          // For now, we'll just pass through
-        } catch (error) {
-          console.error("Token refresh error:", error)
         }
       }
 
